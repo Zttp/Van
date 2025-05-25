@@ -1,32 +1,34 @@
 extends RigidBody3D  
 
-@export var box_type: String = "common"  # "common", "rare", "legendary"  
-@onready var loot_table = preload("res://scripts/loot_table.gd").new()  
+@export var box_type: String = "common"  
+@export var loot_table: Resource # JSON/Resource с данными лута  
+@onready var animation_player = $AnimationPlayer  
+
+var is_opened = false  
 
 func _ready():  
-    $InteractArea.interact_text = "Открыть " + box_type  
+    # Настройка текста взаимодействия  
+    $InteractArea/InteractLabel.text = "Нажми E чтобы открыть"  
 
 func _on_interact():  
-    var item = get_random_item()  
-    Global.player_inventory.add_item(item)  
-    spawn_open_effect()  
-    queue_free()  
+    if !is_opened:  
+        is_opened = true  
+        animation_player.play("open")  
+        await animation_player.animation_finished  
+        spawn_loot()  
+        queue_free()  
 
-func get_random_item():  
-    var rarity_roll = randf()  
-    var target_pool = "common"  
+func spawn_loot():  
+    var item = loot_table.get_item(box_type)  
+    var loot_scene = load(item.scene_path)  
+    var loot_instance = loot_scene.instantiate()  
+    loot_instance.global_transform = global_transform  
+    get_parent().add_child(loot_instance)  
 
-    match box_type:  
-        "common":  
-            if rarity_roll < 0.01: target_pool = "rare"  
-        "rare":  
-            if rarity_roll < 0.05: target_pool = "legendary"  
-        "legendary":  
-            target_pool = "legendary"  
+func _on_interact_area_body_entered(body):  
+    if body.is_in_group("player"):  
+        $InteractArea/InteractLabel.visible = true  
 
-    return loot_table[target_pool].pick_random()  
-
-func spawn_open_effect():  
-    var particles = GPUParticles3D.new()  
-    add_child(particles)  
-    particles.emitting = true  
+func _on_interact_area_body_exited(body):  
+    if body.is_in_group("player"):  
+        $InteractArea/InteractLabel.visible = false  
